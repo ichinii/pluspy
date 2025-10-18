@@ -9,7 +9,7 @@
 #include <typeindex>
 #include <source_location>
 
-namespace pyindex {
+namespace pluspy {
 namespace {
 std::string source_location_to_string(const std::source_location& loc) {
     return std::format("`{}` ({}:{}:{})", loc.function_name(), loc.file_name(), loc.line(), loc.column());
@@ -17,7 +17,7 @@ std::string source_location_to_string(const std::source_location& loc) {
 
 void throw_type_mismatch(const std::string& object_name, const std::type_index& found_type, const std::type_index& expected_type, const std::source_location& caller_loc, const std::source_location& callee_loc) {
     throw std::runtime_error(
-        std::format("type mismatch while casting object '{}'. found: '{}'. expected: '{}'. detected in {} required from {}",
+        std::format("type mismatch while casting dict '{}'. found: '{}'. expected: '{}'. detected in {} required from {}",
             object_name,
             found_type.name(),
             expected_type.name(),
@@ -28,7 +28,7 @@ void throw_type_mismatch(const std::string& object_name, const std::type_index& 
 
 void throw_no_such_field(const std::string& field_name, const std::string& object_name, const std::source_location& caller_loc, const std::source_location& callee_loc) {
     throw std::out_of_range(
-        std::format("no such field '{}' found in object '{}'. detected in {} required from {}",
+        std::format("no such field '{}' found in dict '{}'. detected in {} required from {}",
             field_name,
             object_name,
             source_location_to_string(callee_loc),
@@ -48,62 +48,62 @@ void throw_not_indexable(const std::string& object_name, const std::string& key,
 }
 } // anonymous namespace
 
-class PyObject;
+class dict;
 
 // ============================
-// Base Reflectable type
+// Base make_dict_base type
 // ============================
-class Reflectable {
+class make_dict_base {
 public:
-    virtual ~Reflectable() = default;
+    virtual ~make_dict_base() = default;
     virtual bool has_key(const std::string& key) const = 0;
-    virtual PyObject operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) = 0;
-    virtual const PyObject operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) const = 0;
+    virtual dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) = 0;
+    virtual const dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) const = 0;
 };
 
 // ============================
-// PyObject: Proxy class
+// dict: Proxy class
 // ============================
-struct PyObjectVTable {
-    virtual ~PyObjectVTable() = default;
+struct dict_vtable_base {
+    virtual ~dict_vtable_base() = default;
     virtual void* get() = 0;
     virtual const void* get_const() const = 0;
     virtual void set(const void* ) = 0;
 };
 
-struct PyObjectVTableNull : public PyObjectVTable {
-    void* get() { throw std::runtime_error("attempt to get value of null PyObject"); }
-    const void* get_const() const { throw std::runtime_error("attempt to get value of null PyObject"); }
-    void set(const void*) { throw std::runtime_error("attempt to set value of null PyObject"); }
+struct dict_vtable_null : public dict_vtable_base {
+    void* get() { throw std::runtime_error("attempt to get value of null dict"); }
+    const void* get_const() const { throw std::runtime_error("attempt to get value of null dict"); }
+    void set(const void*) { throw std::runtime_error("attempt to set value of null dict"); }
 };
 
 template <typename T>
-struct PyObjectVTableImpl : public PyObjectVTable {
-    T& object;
+struct dict_vtable_impl : public dict_vtable_base {
+    T& dict;
 
-    PyObjectVTableImpl(T& object) : object(object) {}
+    dict_vtable_impl(T& dict) : dict(dict) {}
 
-    void* get() { return &object; }
-    const void* get_const() const { return &object; }
-    void set(const void* value) { object = *static_cast<const T*>(value); }
+    void* get() { return &dict; }
+    const void* get_const() const { return &dict; }
+    void set(const void* value) { dict = *static_cast<const T*>(value); }
 };
 
-class PyObject {
+class dict {
     std::type_index m_type_id;
     std::string m_name;
-    std::shared_ptr<PyObjectVTable> vtable;
+    std::shared_ptr<dict_vtable_base> vtable;
 
 public:
-    PyObject()
+    dict()
         : m_type_id(typeid(void)),
           m_name("<null>"),
-          vtable(std::make_unique<PyObjectVTableNull>()) {}
+          vtable(std::make_unique<dict_vtable_null>()) {}
 
     template<typename T>
-    PyObject(T& obj, std::string name = "<unknown>")
+    dict(T& obj, std::string name = "<unknown>")
         : m_type_id(typeid(T)),
           m_name(std::move(name)),
-          vtable(std::make_unique<PyObjectVTableImpl<T>>(obj)) {
+          vtable(std::make_unique<dict_vtable_impl<T>>(obj)) {
     }
 
     // ===========================
@@ -138,18 +138,18 @@ public:
     // ===========================
 
     bool has_key(const std::string& key) const {
-        const Reflectable* ref = dynamic_cast<const Reflectable*>(static_cast<const Reflectable*>(vtable->get()));
+        const make_dict_base* ref = dynamic_cast<const make_dict_base*>(static_cast<const make_dict_base*>(vtable->get()));
         return ref && ref->has_key(key);
     }
 
-    PyObject operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) {
-        Reflectable* ref = dynamic_cast<Reflectable*>(static_cast<Reflectable*>(vtable->get()));
+    dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) {
+        make_dict_base* ref = dynamic_cast<make_dict_base*>(static_cast<make_dict_base*>(vtable->get()));
         if (!ref) throw_not_indexable(m_name, key, caller_loc, std::source_location::current());
         return (*ref)[key];
     }
 
-    const PyObject operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) const {
-        const Reflectable* ref = dynamic_cast<const Reflectable*>(static_cast<const Reflectable*>(vtable->get_const()));
+    const dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) const {
+        const make_dict_base* ref = dynamic_cast<const make_dict_base*>(static_cast<const make_dict_base*>(vtable->get_const()));
         if (!ref) throw_not_indexable(m_name, key, caller_loc, std::source_location::current());
         return (*ref)[key];
     }
@@ -165,7 +165,7 @@ public:
     // NOTE: this function is very convenient but exposes risky characteristics,
     // like the missing ability to implicitly cast T to whatever type we want to write to
     template<typename T>
-    PyObject operator=(const T& value) {
+    dict operator=(const T& value) {
         set(value);
         return *this;
     }
@@ -175,15 +175,15 @@ public:
 // Reflection helper template
 // ============================
 template<typename T>
-class Reflector : public Reflectable {
-    using AccessMap = std::unordered_map<std::string, std::function<PyObject(T&)>>;
+class make_dict : public make_dict_base {
+    using AccessMap = std::unordered_map<std::string, std::function<dict(T&)>>;
     static AccessMap& registry() {
         static AccessMap map;
         return map;
     }
 
 protected:
-    static void registerMember(const std::string& attributeName, std::function<PyObject(T&)> accessor) {
+    static void registerMember(const std::string& attributeName, std::function<dict(T&)> accessor) {
         registry()[attributeName] = std::move(accessor);
     }
 
@@ -193,22 +193,22 @@ public:
         return it != registry().end();
     }
 
-    PyObject operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) override {
+    dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) override {
         auto it = registry().find(key);
         if (it == registry().end())
             throw_no_such_field(key, typeid(T).name(), caller_loc, std::source_location::current());
         return it->second(static_cast<T&>(*this));
     }
 
-    const PyObject operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) const override {
+    const dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) const override {
         auto it = registry().find(key);
         if (it == registry().end())
             throw_no_such_field(key, typeid(T).name(), caller_loc, std::source_location::current());
         return it->second(const_cast<T&>(static_cast<const T&>(*this)));
     }
 
-    operator PyObject() {
-        return PyObject(
+    operator dict() {
+        return dict(
             *static_cast<T*>(this),
             std::string(typeid(T).name())
         );
@@ -218,8 +218,8 @@ public:
 // ============================
 // Member registration macro
 // ============================
-#define PYINDEX_REGISTER(Type, Member) \
-    pyindex::Reflector<Type>::registerMember(#Member, [](Type& obj) -> pyindex::PyObject { \
-        return pyindex::PyObject(obj.Member, #Type "::" #Member); \
+#define PLUSPY_DICT_MEMBER(Type, Member) \
+    pluspy::make_dict<Type>::registerMember(#Member, [](Type& obj) -> pluspy::dict { \
+        return pluspy::dict(obj.Member, #Type "::" #Member); \
     });
-} // namespace pyindex
+} // namespace pluspy

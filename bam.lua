@@ -7,6 +7,7 @@ AddTool(function(s)
 	s.cc.flags:Add("--std=c++23")
     s.cc.flags:Add("-O3")
 	s.cc.includes:Add(src_dir)
+	s.cc.includes:Add(src_dir.."/include")
 
 	s.cc.Output = function(s, input)
 		input = input:gsub("^"..src_dir.."/", "")

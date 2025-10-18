@@ -6,15 +6,15 @@
 
 using namespace std::literals;
 
-#include "pyindex.h"
+#include "include/pluspy/pluspy.h"
 
-struct Address : pyindex::Reflector<Address> {
+struct Address : pluspy::make_dict<Address> {
     std::string city;
     int zipcode;
 
     Address(std::string city = "", int zipcode = 0) : city(city), zipcode(zipcode) {
-        PYINDEX_REGISTER(Address, city);
-        PYINDEX_REGISTER(Address, zipcode);
+        PLUSPY_DICT_MEMBER(Address, city);
+        PLUSPY_DICT_MEMBER(Address, zipcode);
     }
 
     std::string to_string() const {
@@ -30,21 +30,21 @@ struct B {
     std::string value_b;
 };
 
-struct Person : pyindex::Reflector<Person> {
+struct Person : pluspy::make_dict<Person> {
     std::string name;
     int age;
     Address address;
     std::variant<A, B> favorite;
 
     Person() {
-        PYINDEX_REGISTER(Person, name);
-        PYINDEX_REGISTER(Person, age);
-        PYINDEX_REGISTER(Person, address);
-        PYINDEX_REGISTER(Person, favorite);
+        PLUSPY_DICT_MEMBER(Person, name);
+        PLUSPY_DICT_MEMBER(Person, age);
+        PLUSPY_DICT_MEMBER(Person, address);
+        PLUSPY_DICT_MEMBER(Person, favorite);
     }
 };
 
-void print(const pyindex::PyObject& object) {
+void print(const pluspy::dict& object) {
     auto name = object["name"].as<std::string>();
     auto age = object["age"].as<int>();
     std::println("{} is {} years old", name, age);
