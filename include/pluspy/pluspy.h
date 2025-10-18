@@ -10,7 +10,11 @@
 #include <source_location>
 
 namespace pluspy {
-namespace {
+
+class dict;
+
+namespace detail {
+
 std::string source_location_to_string(const std::source_location& loc) {
     return std::format("`{}` ({}:{}:{})", loc.function_name(), loc.file_name(), loc.line(), loc.column());
 }
@@ -46,9 +50,6 @@ void throw_not_indexable(const std::string& object_name, const std::string& key,
             source_location_to_string(caller_loc)
         ));
 }
-} // anonymous namespace
-
-class dict;
 
 // ============================
 // Base make_dict_base type
@@ -88,22 +89,24 @@ struct dict_vtable_impl : public dict_vtable_base {
     void set(const void* value) { dict = *static_cast<const T*>(value); }
 };
 
+} // namespace detail
+
 class dict {
     std::type_index m_type_id;
     std::string m_name;
-    std::shared_ptr<dict_vtable_base> vtable;
+    std::shared_ptr<detail::dict_vtable_base> vtable;
 
 public:
     dict()
         : m_type_id(typeid(void)),
           m_name("<null>"),
-          vtable(std::make_unique<dict_vtable_null>()) {}
+          vtable(std::make_unique<detail::dict_vtable_null>()) {}
 
     template<typename T>
     dict(T& obj, std::string name = "<unknown>")
         : m_type_id(typeid(T)),
           m_name(std::move(name)),
-          vtable(std::make_unique<dict_vtable_impl<T>>(obj)) {
+          vtable(std::make_unique<detail::dict_vtable_impl<T>>(obj)) {
     }
 
     // ===========================
@@ -117,12 +120,14 @@ public:
 
     template<typename T>
     T& as(const std::source_location& caller_loc = std::source_location::current()) {
+        using namespace detail;
         if (!is<T>()) throw_type_mismatch(m_name, m_type_id, typeid(T), caller_loc, std::source_location::current());
         return *static_cast<T*>(vtable->get());
     }
 
     template<typename T>
     const T& as(const std::source_location& caller_loc = std::source_location::current()) const {
+        using namespace detail;
         if (!is<T>()) throw_type_mismatch(m_name, m_type_id, typeid(T), caller_loc, std::source_location::current());
         return *static_cast<const T*>(vtable->get_const());
     }
@@ -138,17 +143,20 @@ public:
     // ===========================
 
     bool has_key(const std::string& key) const {
+        using namespace detail;
         const make_dict_base* ref = dynamic_cast<const make_dict_base*>(static_cast<const make_dict_base*>(vtable->get()));
         return ref && ref->has_key(key);
     }
 
     dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) {
+        using namespace detail;
         make_dict_base* ref = dynamic_cast<make_dict_base*>(static_cast<make_dict_base*>(vtable->get()));
         if (!ref) throw_not_indexable(m_name, key, caller_loc, std::source_location::current());
         return (*ref)[key];
     }
 
     const dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) const {
+        using namespace detail;
         const make_dict_base* ref = dynamic_cast<const make_dict_base*>(static_cast<const make_dict_base*>(vtable->get_const()));
         if (!ref) throw_not_indexable(m_name, key, caller_loc, std::source_location::current());
         return (*ref)[key];
@@ -156,6 +164,7 @@ public:
 
     template<typename T>
     void set(const T& value, const std::source_location& caller_loc = std::source_location::current()) {
+        using namespace detail;
         if (!is<T>()) throw_type_mismatch(m_name, m_type_id, typeid(T), caller_loc, std::source_location::current());
         vtable->set(&value);
     }
@@ -175,7 +184,7 @@ public:
 // Reflection helper template
 // ============================
 template<typename T>
-class make_dict : public make_dict_base {
+class make_dict : public detail::make_dict_base {
     using AccessMap = std::unordered_map<std::string, std::function<dict(T&)>>;
     static AccessMap& registry() {
         static AccessMap map;
@@ -194,6 +203,7 @@ public:
     }
 
     dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) override {
+        using namespace detail;
         auto it = registry().find(key);
         if (it == registry().end())
             throw_no_such_field(key, typeid(T).name(), caller_loc, std::source_location::current());
@@ -201,6 +211,7 @@ public:
     }
 
     const dict operator[](const std::string& key, const std::source_location& caller_loc = std::source_location::current()) const override {
+        using namespace detail;
         auto it = registry().find(key);
         if (it == registry().end())
             throw_no_such_field(key, typeid(T).name(), caller_loc, std::source_location::current());

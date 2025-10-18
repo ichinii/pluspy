@@ -4,9 +4,9 @@
 #include <optional>
 #include <variant>
 
-using namespace std::literals;
+#include "pluspy/pluspy.h"
 
-#include "include/pluspy/pluspy.h"
+using namespace std::literals;
 
 struct Address : pluspy::make_dict<Address> {
     std::string city;
