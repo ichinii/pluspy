@@ -12,11 +12,6 @@ struct Address : pluspy::make_dict<Address> {
     std::string city;
     int zipcode;
 
-    Address(std::string city = "", int zipcode = 0) : city(city), zipcode(zipcode) {
-        PLUSPY_DICT_MEMBER(Address, city);
-        PLUSPY_DICT_MEMBER(Address, zipcode);
-    }
-
     std::string to_string() const {
         return std::format("{} {}", zipcode, city);
     }
@@ -35,13 +30,6 @@ struct Person : pluspy::make_dict<Person> {
     int age;
     Address address;
     std::variant<A, B> favorite;
-
-    Person() {
-        PLUSPY_DICT_MEMBER(Person, name);
-        PLUSPY_DICT_MEMBER(Person, age);
-        PLUSPY_DICT_MEMBER(Person, address);
-        PLUSPY_DICT_MEMBER(Person, favorite);
-    }
 };
 
 void print(const pluspy::dict& object) {
@@ -56,6 +44,13 @@ void print(const pluspy::dict& object) {
 }
 
 int main() {
+    PLUSPY_REGISTER_DICT_MEMBER(Address, city);
+    PLUSPY_REGISTER_DICT_MEMBER(Address, zipcode);
+    PLUSPY_REGISTER_DICT_MEMBER(Person, name);
+    PLUSPY_REGISTER_DICT_MEMBER(Person, age);
+    PLUSPY_REGISTER_DICT_MEMBER(Person, address);
+    PLUSPY_REGISTER_DICT_MEMBER(Person, favorite);
+
     Person a, b;
 
     a["address"]["city"] = "Alice"s;

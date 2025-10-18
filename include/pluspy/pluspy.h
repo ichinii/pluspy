@@ -191,7 +191,7 @@ class make_dict : public detail::make_dict_base {
         return map;
     }
 
-protected:
+public:
     static void registerMember(const std::string& attributeName, std::function<dict(T&)> accessor) {
         registry()[attributeName] = std::move(accessor);
     }
@@ -229,7 +229,7 @@ public:
 // ============================
 // Member registration macro
 // ============================
-#define PLUSPY_DICT_MEMBER(Type, Member) \
+#define PLUSPY_REGISTER_DICT_MEMBER(Type, Member) \
     pluspy::make_dict<Type>::registerMember(#Member, [](Type& obj) -> pluspy::dict { \
         return pluspy::dict(obj.Member, #Type "::" #Member); \
     });
